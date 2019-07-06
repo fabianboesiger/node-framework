@@ -1,8 +1,11 @@
+if(session.user === undefined) {
+    redirect("/signup");
+}
 wrap("layout.js", () => {
     div({"class": "centered-form"}, () => {
         h1(translate({
-            "en": "Sign Up",
-            "de": "Registrieren"
+            "en": "Update Profile",
+            "de": "Profil ändern"
         }));
         nav(() => {
             a({"href": "/"}, translate({
@@ -10,13 +13,12 @@ wrap("layout.js", () => {
                 "de": "Zurück"
             }));
         });
-        request("user", save, translate({
+        request("user", update, translate({
             "en": "This username is already in use",
             "de": "Dieser Benutzername wird bereits verwendet"
-        }), (data) => {
-            session.user = data.username;
-            update("session", session, undefined, session._id);
-            redirect("/");
-        });
+        }), translate({
+            "en": "Your profile was changed successfully",
+            "de": "Dein Profil wurde erfolgreich geändert"
+        }), session.user, ["password", "confirmPassword"]);
     });
 });

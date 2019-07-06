@@ -1,181 +1,129 @@
-let http = require("http");
-let fs = require("fs");
-let mime = require("mime-types");
+const http = require("http");
+const fs = require("fs");
+const mime = require("mime-types");
+const querystring = require("querystring");
+
+// setup
+let context = {
+    "port": 8000
+};
+
+maskedEval(fs.readFileSync("setup.js").toString(), context);
 
 http.createServer(function(req, res) {
 
-    let start = new Date().getMilliseconds();
-    let path = "root" + req.url;
-    let dynamicPath = path.substring(0, path.lastIndexOf("/") + 1) + "_" + path.substring(path.lastIndexOf("/") + 1) + ".js";
-
-    if(!fs.existsSync(path) && !fs.existsSync(dynamicPath)) {
-        error(req, res, 404, ["not found"]);
+    let path;
+    let filePath = "root";
+    let urlParamsStart = req.url.indexOf("?");
+    if(urlParamsStart >= 0) {
+        path = req.url.substring(0, urlParamsStart);
     } else {
-        if(fs.existsSync(path) && fs.lstatSync(path).isDirectory()) {
-            parse(req, res, path + "_index.js");
-        } else {
-            if(path.indexOf(".") === -1) {
-                parse(req, res, dynamicPath);
-            } else {
-                res.writeHead(200, {"Content-Type": mime.lookup(path)});
-                res.end(fs.readFileSync(path));
-            }
-        }
+        path = req.url;
     }
+    filePath += path;
+    let dynamicFilePath = filePath.substring(0, filePath.lastIndexOf("/") + 1) + "_" + filePath.substring(filePath.lastIndexOf("/") + 1) + ".js";
 
-    let time = new Date().getMilliseconds() - start;
-    console.log(res.statusCode + "\t " + time + " ms" + "\t " + req.method + "\t " +  req.url);
-
-}).listen(8001);
-
-function parse(_req, _res, _path, _variables, _statusCode) {
-
-    let _output = "";
-    let _errors = [];
-    
-    // copy variables
-    for(let key in _variables) {
-        this[key] = _variables[key];
-    }
-
-    // prints plain text
-    this.print = function(string) {
-        _output += string;
-    }
-
-    // includes other files from modules
-    this.include = function(_modulePath) {
-        _modulePath = "modules/" + _modulePath;
-        if(!fs.existsSync(_modulePath)) {
-            _errors.push("file \"" + _modulePath + "\" does not exist");
-            return;
-        }
-        eval(fs.readFileSync(_modulePath).toString());
-    }
-
-    // wraps other file from module around parent file
-    this.wrap = function(_modulePath, _content) {
-        _modulePath = "modules/" + _modulePath;
-        if(!fs.existsSync(_modulePath)) {
-            _errors.push("file \"" + _modulePath + "\" does not exist");
-            return;
-        }
-
-        this.content = function() {
-            if(typeof _content === "function") {
-                _content();
-            } else
-            if(typeof _content === "string") {
-                _output += _content;
-            }
-        }
-
-        eval(fs.readFileSync(_modulePath).toString());
-    }
-
-    // generates a html list from a javascript array
-    this.list = function(type, list, lambda, attributes) {
-        type(attributes, () => {
-            list.forEach((element, index, array) => {
-                li(() => {
-                    lambda(element, index, array);
-                });
-            })
-        });
-    }
-
-    this.translate = function(text) {
-        let languagesString = _req.headers["accept-language"];
-        let splittedLanguagesString = languagesString.split(",");
-        let languages = [{
-            "language": "en",
-            "weight": 0
-        }];
-        splittedLanguagesString.forEach(element => {
-            splittedLanguageString = element.split(";");
-            languages.push({
-                "language": splittedLanguageString[0],
-                "weight": (splittedLanguageString.length >= 2) ? 
-                    parseFloat(splittedLanguageString[1].substring(splittedLanguageString[1].indexOf("=") + 1)) : 1
-            });
-        });
-        languages.sort((a, b) => {
-            return b.weight - a.weight;
-        });
-        let appendedLanguages = [];
-        languages.forEach(element => {
-            appendedLanguages.push(element);
-            if(element.language.indexOf("-") !== -1) {
-                appendedLanguages.push({
-                    "language": element.language.substring(0, element.language.indexOf("-")),
-                    "weight": element.weight
-                });
-            }
-        });
-        return text[appendedLanguages[0].language];
-    }
-
-    // html tag functions
-    let tags = eval(fs.readFileSync("tags.js").toString());
-    tags.forEach(element => {
-        let tag = "";
-        if(typeof element === "string") {
-            tag = element;
-        } else {
-            tag = element.name;
-        }
-
-        this[tag] = function(arg1, arg2) {
-            if(element.pre !== undefined) {
-                element.pre();
-            }
-            
-            let attributes = 
-                (typeof arg1 === "object") ? arg1 :
-                (typeof arg2 === "object") ? arg2 : undefined;
-            let contentFunction = 
-                (typeof arg1 === "function") ? arg1 :
-                (typeof arg2 === "function") ? arg2 : undefined;
-            let contentString = 
-                (typeof arg1 === "string") ? arg1 :
-                (typeof arg2 === "string") ? arg2 : undefined;
-
-            _output += "<" + tag;
-            if(attributes !== undefined) {
-                for(key in attributes) {
-                    _output += " " + key + "=\"" + attributes[key] + "\"";
-                }
-            }
-
-            if(contentFunction !== undefined || contentString !== undefined) {
-                _output += ">";
-                if(contentFunction !== undefined) {
-                    contentFunction();
-                } else {
-                    _output += contentString;
-                }
-                _output += "</" + tag + ">";
-            } else {
-                _output += "/>";
-            }
-
-            if(element.post !== undefined) {
-                element.post();
-            }
-        }
+    var data = "";
+    req.on("data", function(chunk) {
+        data += chunk;
     });
 
-    eval(fs.readFileSync(_path).toString());
+    req.on("end", function() {
+        let start = Date.now();
 
-    if(_errors.length > 0) {
-        error(_req, _res, 500, _errors);
+        // get POST parameters
+        req.body = {};
+        if(data.length > 0) {
+            decodeURIComponent(data).split("&").forEach(element => {
+                let splitted = element.split("=");
+                req.body[splitted[0]] = splitted[1];
+            });
+        }
+
+        // get GET parameters
+        req.params = {};
+        if(urlParamsStart >= 0) {
+            req.params = querystring.parse(req.url.substring(urlParamsStart + 1));
+        }
+
+        // see how to respond
+        if(!fs.existsSync(filePath) && !fs.existsSync(dynamicFilePath)) {
+            error(req, res, 404, ["not found"]);
+        } else {
+            if(fs.existsSync(filePath) && fs.lstatSync(filePath).isDirectory()) {
+                // parse(req, res, path + "/_index.js");
+                res.writeHead(302, {"Location": path.substring(1) + "/index"});
+                res.end();
+            } else {
+                if(path.indexOf(".") === -1) {
+                    parse(req, res, dynamicFilePath);
+                } else {
+                    if(filePath.charAt(filePath.indexOf("/") + 1) !== '_') {
+                        res.writeHead(200, {"Content-Type": mime.lookup(filePath)});
+                        res.end(fs.readFileSync(filePath));
+                    } else {
+                        error(req, res, 404, ["not found"]);
+                    }
+                }
+            }
+        }
+        
+        let time = Date.now() - start;
+        console.log(res.statusCode + "\t " + time + " ms" + "\t " + req.method + "\t " +  req.url);
+    });
+
+}).listen(context.port);
+
+function parse(req, res, filePath, variables, statusCode) {
+
+    let output = "";
+    let errors = [];
+    let header = {};
+
+    let context = {};
+
+    // copy variables
+    for(let key in variables) {
+        context[key] = variables[key];
     }
 
-    _res.writeHead((_statusCode === undefined) ? 200 : _statusCode, {"Content-Type": "text/html"});
-    _res.end(_output);
+    context.redirect = function(redirectPath) {
+        res.writeHead(302, {"Location": redirectPath});
+        res.end();
+    }
+    
+    library = function(libraryPath) {
+        libraryPath = "libraries/" + libraryPath;
+        if(!fs.existsSync(libraryPath)) {
+            throw "library \"" + libraryPath + "\" does not exist";
+        }
+        with(context) {
+            eval(fs.readFileSync(libraryPath).toString());
+        }
+    }
+
+    library("include.js");
+    library("translate.js");
+    library("html.js");
+    library("database.js");     // requires html.js, translate.js
+    library("session.js");      // requires database.js
+
+    maskedEval(fs.readFileSync(filePath).toString(), context);
+
+    if(errors.length > 0) {
+        error(req, res, 500, errors);
+    }
+
+    header["Content-Type"] = "text/html";
+    res.writeHead((statusCode === undefined) ? 200 : statusCode, header);
+    res.end(output);
 
 }
 
 function error(req, res, statusCode, errors){
     parse(req, res, "modules/error.js", {"statusCode": statusCode, "errors": errors}, statusCode);
+}
+
+function maskedEval(source, context) {
+    new Function("with(this){" + source + "}").call(context);
 }

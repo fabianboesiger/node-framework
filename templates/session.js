@@ -1,0 +1,4 @@
+() => {return {
+    "user": undefined,
+    "errors": []
+};}
