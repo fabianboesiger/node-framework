@@ -119,6 +119,7 @@ tags.forEach(element => {
     }
 
     this[tag] = function(arg1, arg2) {
+
         if(element.pre !== undefined) {
             element.pre();
         }
@@ -155,6 +156,7 @@ tags.forEach(element => {
         if(element.post !== undefined) {
             element.post();
         }
+
     }
 });
 

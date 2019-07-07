@@ -5,8 +5,22 @@ const querystring = require("querystring");
 
 // setup
 let context = {
-    "port": 8000
+    "settings": {
+        "port": 8000
+    },
+    "middleware": []
 };
+
+ 
+context.library = function(libraryPath) {
+    libraryPath = "libraries/" + libraryPath;
+    if(!fs.existsSync(libraryPath)) {
+        throw "library \"" + libraryPath + "\" does not exist";
+    }
+    with(context) {
+        eval(fs.readFileSync(libraryPath).toString());
+    }
+}
 
 maskedEval(fs.readFileSync("setup.js").toString(), context);
 
@@ -46,6 +60,10 @@ http.createServer(function(req, res) {
             req.params = querystring.parse(req.url.substring(urlParamsStart + 1));
         }
 
+        context.middleware.forEach((action) => {
+            action(req, res);
+        });
+
         // see how to respond
         if(!fs.existsSync(filePath) && !fs.existsSync(dynamicFilePath)) {
             error(req, res, 404, ["not found"]);
@@ -72,51 +90,36 @@ http.createServer(function(req, res) {
         console.log(res.statusCode + "\t " + time + " ms" + "\t " + req.method + "\t " +  req.url);
     });
 
-}).listen(context.port);
+}).listen(context.settings.port);
 
 function parse(req, res, filePath, variables, statusCode) {
 
-    let output = "";
-    let errors = [];
-    let header = {};
-
-    let context = {};
+    context.output = "";
+    context.errors = [];
+    context.header = {};
 
     // copy variables
     for(let key in variables) {
         context[key] = variables[key];
     }
 
+    context.req = req;
+    context.res = res;
+
     context.redirect = function(redirectPath) {
         res.writeHead(302, {"Location": redirectPath});
         res.end();
     }
-    
-    library = function(libraryPath) {
-        libraryPath = "libraries/" + libraryPath;
-        if(!fs.existsSync(libraryPath)) {
-            throw "library \"" + libraryPath + "\" does not exist";
-        }
-        with(context) {
-            eval(fs.readFileSync(libraryPath).toString());
-        }
-    }
-
-    library("include.js");
-    library("translate.js");
-    library("html.js");
-    library("database.js");     // requires html.js, translate.js
-    library("session.js");      // requires database.js
 
     maskedEval(fs.readFileSync(filePath).toString(), context);
 
-    if(errors.length > 0) {
-        error(req, res, 500, errors);
+    if(context.errors.length > 0) {
+        error(req, res, 500, context.errors);
     }
 
-    header["Content-Type"] = "text/html";
-    res.writeHead((statusCode === undefined) ? 200 : statusCode, header);
-    res.end(output);
+    context.header["Content-Type"] = "text/html";
+    res.writeHead((statusCode === undefined) ? 200 : statusCode, context.header);
+    res.end(context.output);
 
 }
 

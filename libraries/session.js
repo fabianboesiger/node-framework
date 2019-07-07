@@ -12,20 +12,21 @@ function parseCookies(request) {
     return list;
 }
 
-let cookies = parseCookies(req);
-
-let session = null;
-if(cookies.sessionid !== undefined) {
-    session = load("session", cookies.sessionid);
-}
-if(session !== null) {
-    // session exists
-    this.session = session;
-    header["Set-Cookie"] = "sessionid=" + cookies.sessionid + "; Path=/; Max-Age=" + sessionDuration;
-} else {
-    // new session
-    let session = {};
-    let id = save("session", session);
-    this.session = session;
-    header["Set-Cookie"] = "sessionid=" + id + "; Path=/; Max-Age=" + sessionDuration;
-}
+middleware.push((req, res) => {
+    let cookies = parseCookies(req);
+    let session = null;
+    if(cookies.sessionid !== undefined) {
+        session = load("session", cookies.sessionid);
+    }
+    if(session !== null) {
+        // session exists
+        this.session = session;
+        header["Set-Cookie"] = "sessionid=" + cookies.sessionid + "; Path=/; Max-Age=" + sessionDuration;
+    } else {
+        // new session
+        let session = {};
+        let id = save("session", session);
+        this.session = session;
+        header["Set-Cookie"] = "sessionid=" + id + "; Path=/; Max-Age=" + sessionDuration;
+    }
+});

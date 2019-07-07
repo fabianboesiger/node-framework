@@ -8,16 +8,5 @@ html(() => {
         main(() => {
             content();
         });
-        /*
-        footer(() => {
-            p({"class": "centered"}, () => {
-                print(translate({
-                    "en": "Visit me on ",
-                    "de": "Besuche mich auf "
-                }));
-                a({"href": "https://github.com/fabianboesiger"}, "GitHub");
-            }); 
-        });
-        */
     });
 });
