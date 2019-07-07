@@ -62,7 +62,7 @@ save = function(name, data, template, id) {
     }
 
     if(template === undefined) {
-        let template = eval(fs.readFileSync("templates/" + name + ".js").toString())();
+        let template = eval(fs.readFileSync("templates/" + name + ".js").toString());
     }
 
     let overwrite = (id !== undefined);
@@ -231,7 +231,7 @@ validate = function(template, data, mask) {
 // autogenerate form
 request = function(templateName, action, actionFailed, actionSucceeded, id, mask, labeled = true, placeholder = false) {
 
-    let template = eval(fs.readFileSync("templates/" + templateName + ".js").toString())();
+    let template = eval(fs.readFileSync("templates/" + templateName + ".js").toString());
 
     form({"method": "POST"}, () => {
 

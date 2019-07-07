@@ -1,4 +1,0 @@
-() => {return {
-    "user": undefined,
-    "errors": []
-};}
