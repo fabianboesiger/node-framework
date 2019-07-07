@@ -113,6 +113,7 @@ function parse(req, res, filePath, variables, statusCode) {
 
     maskedEval(fs.readFileSync(filePath).toString(), context);
 
+    console.log(context.errors);
     if(context.errors.length > 0) {
         error(req, res, 500, context.errors);
     }
@@ -124,7 +125,7 @@ function parse(req, res, filePath, variables, statusCode) {
 }
 
 function error(req, res, statusCode, errors){
-    parse(req, res, "modules/error.js", {"statusCode": statusCode, "errors": errors}, statusCode);
+    parse(req, res, "modules/error.js", {"statusCode": statusCode, "errorList": errors}, statusCode);
 }
 
 function maskedEval(source, context) {

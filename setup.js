@@ -10,5 +10,5 @@ library("database.js");
 library("session.js");
 
 interval(() => {
-    console.log(Date.now());
+    
 }, 1000);

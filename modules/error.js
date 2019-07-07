@@ -1,4 +1,4 @@
 wrap("layout.js", () => {
     h1("Error " + statusCode);
-    pre(errors[0]);
+    pre(errorList[0]);
 });
