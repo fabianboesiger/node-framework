@@ -104,7 +104,7 @@ module.exports = (directory) => {
                     if(path.indexOf(".") === -1) {
                         parse(req, res, dynamicFilePath);
                     } else {
-                        if(filePath.charAt(filePath.indexOf("/") + 1) !== '_') {
+                        if(filePath.charAt(filePath.lastIndexOf("/") + 1) !== '_') {
                             res.writeHead(200, {"Content-Type": mime.lookup(filePath)});
                             res.end(fs.readFileSync(filePath));
                         } else {

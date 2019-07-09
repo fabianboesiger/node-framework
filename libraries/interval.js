@@ -1,5 +1,5 @@
 interval = async function(action, duration) {
-    const sleep = require('util').promisify(setTimeout)
+    const sleep = require('util').promisify(setTimeout);
 
     let next = Date.now();
     while(true) {

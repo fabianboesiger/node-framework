@@ -1,4 +1,4 @@
-const lock = require("rwlock");
+const lock = new (require("rwlock"))();
 
 save = function(name, data, template, id) {
 
@@ -78,8 +78,9 @@ load = function(name, id) {
         return null;
     }
 
-    lock.writeLock(file, function(release) {
-        let data = fs.readFileSync(file);
+    let data;
+    lock.readLock(file, function(release) {
+        data = fs.readFileSync(file);
         release();
     });
 
