@@ -23,6 +23,14 @@ module.exports = (directory) => {
         }
     }
 
+    
+    context.library("interval.js");
+    context.library("include.js",);
+    context.library("translate.js");
+    context.library("html.js");
+    context.library("database.js");
+    context.library("session.js");
+
     // read setup file
     if(!fs.existsSync(directory + "/setup.js")) {
         throw "\"setup.js\" does not exist";

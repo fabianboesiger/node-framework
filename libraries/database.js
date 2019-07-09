@@ -1,58 +1,7 @@
-/*
-global.filesInProcess = {};
-
-const sleep = require('util').promisify(setTimeout)
-
-startReading = async function(name, id) {
-    console.log("br " + JSON.stringify(global.filesInProcess));
-    //console.log((global.filesInProcess[name] !== undefined) + " "+ (global.filesInProcess[name][id] !== undefined) +" "+(global.filesInProcess[name][id].writing !== 0));
-    while(global.filesInProcess[name] !== undefined && global.filesInProcess[name][id] !== undefined && global.filesInProcess[name][id].writing !== 0){
-        await sleep(10);
-    }
-    if(global.filesInProcess[name] === undefined) {
-        global.filesInProcess[name] = {};
-    }
-    if(global.filesInProcess[name][id] === undefined) {
-        global.filesInProcess[name][id] = {"reading": 1, "writing": 0};
-    } else {
-        global.filesInProcess[name][id].reading++;
-    }
-}
-
-stopReading = function(name, id) {
-    console.log("er " + JSON.stringify(global.filesInProcess));
-    global.filesInProcess[name][id].reading--;
-    if(global.filesInProcess[name][id].reading === 0) {
-        delete global.filesInProcess[name][id];
-    }
-}
-
-startWriting = async function(name, id) {
-    console.log("bw " + JSON.stringify(global.filesInProcess));
-    while(global.filesInProcess[name] !== undefined && global.filesInProcess[name][id] !== undefined && (global.filesInProcess[name][id].reading !== 0 || global.filesInProcess[name][id].writing !== 0)) {
-        await sleep(10);
-    }
-    if(global.filesInProcess[name] === undefined) {
-        global.filesInProcess[name] = {};
-    }
-    if(global.filesInProcess[name][id] === undefined) {
-        global.filesInProcess[name][id] = {"reading": 0, "writing": 1};
-    } else {
-        // global.filesInProcess[name][id].writing++;
-        assert(false);
-    }
-}
-
-stopWriting = function(name, id) {
-    console.log("ew " + JSON.stringify(global.filesInProcess));
-    global.filesInProcess[name][id].writing--;
-    if(global.filesInProcess[name][id].writing === 0) {
-        delete global.filesInProcess[name][id];
-    }
-}
-*/
+const lock = require("rwlock");
 
 save = function(name, data, template, id) {
+
     if(!fs.existsSync("./data")) {
         fs.mkdirSync("./data");
     }
@@ -90,8 +39,6 @@ save = function(name, data, template, id) {
         return null;
     }
 
-    //startWriting(name, id);
-
     let copy = load(name, id);
     if(copy !== null) {
         if(copy._timestamp !== undefined) {
@@ -103,12 +50,21 @@ save = function(name, data, template, id) {
         }
     }
 
+    // check timestamp
+    let current = load(name, id);
+    if(data._timestamp !== undefined && current._timestamp > data._timestamp) {
+        return null;
+    }
+
+    // set metadata
     data._timestamp = Date.now();
     data._id = id;
     data._name = name;
 
-    fs.writeFileSync(file, JSON.stringify(data));
-    //stopWriting(name, id);
+    lock.writeLock(file, function(release) {
+        fs.writeFileSync(file, JSON.stringify(data));
+        release();
+    });
 
     return id;
 }
@@ -121,9 +77,12 @@ load = function(name, id) {
     if(!fs.existsSync(file)) {
         return null;
     }
-    //startReading(name, id);
-    let data = fs.readFileSync(file);
-    //stopReading(name, id);
+
+    lock.writeLock(file, function(release) {
+        let data = fs.readFileSync(file);
+        release();
+    });
+
     return JSON.parse(data);
 }
 
@@ -195,6 +154,18 @@ validate = function(template, data, mask) {
                         }
                     }
                 }
+            } else 
+            if(element.type !== undefined && element.type === "select") {
+                let valid = false;
+                for(let i = 0; i < element.options.length; i++) {
+                    if(element.options[i].value === value) {
+                        valid = true;
+                        break;
+                    }
+                }
+                if(!valid) {
+                    errors.push(element["options-message"]);
+                }
             } else {
                 // element is string
                 if(element.minlength !== undefined) {
@@ -246,11 +217,11 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
             }
         }
 
+        // validate POST parameters and execute action if there are no errors
         if(req.method === "POST") {
             let errors = validate(template, parameters, mask);
 
             if(errors.length > 0) {
-                //list(ul, errors, {"class": "errors"});
                 session.errors = errors;
             } else {
                 let response = action(templateName, parameters, template, id);
@@ -259,7 +230,6 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
                         actionFailed(parameters);
                     } else
                     if(typeof actionFailed === "string") {
-                        //list(ul, [actionFailed], {"class": "errors"});
                         session.errors = [actionFailed];
                     }
                 } else {
@@ -267,7 +237,6 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
                         actionSucceeded(parameters);
                     } else
                     if(typeof actionSucceeded === "string") {
-                        //list(ul, [actionSucceeded], {"class": "successes"});
                         session.errors = [actionSucceeded];
                     }
                 }
@@ -329,7 +298,21 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
                     }
                 }
 
-                input(attributes);
+                if(attributes.type === "textarea") {
+                    textarea(attributes);
+                } else
+                if(attributes.type === "select") {
+                    select(attributes, () => {
+                        if(attributes.options !== undefined) {
+                            attributes.options.forEach((element) => {
+                                option({"value": element.value}, element.content);
+                            });
+                        }
+                    });
+                } else {
+                    input(attributes);
+                }
+
             }
         
             input({"type": "submit", "value": translate({
