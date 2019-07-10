@@ -1,6 +1,19 @@
 const lock = new (require("rwlock"))();
 
-save = function(name, data, template, id) {
+save = function(arg1, arg2, arg3, arg4) {
+
+    let name, data, template, id;
+    if(typeof arg1 === "object" && typeof arg2 === "object") {
+        name = arg1._name;
+        data = arg1;
+        template = arg2;
+        id = arg1._id;
+    } else {
+        name = arg1;
+        data = arg2;
+        template = arg3;
+        id = arg4;
+    }
 
     if(!fs.existsSync("./data")) {
         fs.mkdirSync("./data");
@@ -109,6 +122,16 @@ update = function(name, data, template, id) {
     }
     save(name, object, template, id);
     return true;
+}
+
+modify = function(name, id, action) {
+    let object = load(name, id);
+    if(object !== null) {
+        action(object);
+        save(object);
+        return true;
+    }
+    return false;
 }
 
 generateId = function(length) {
