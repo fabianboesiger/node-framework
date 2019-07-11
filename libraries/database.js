@@ -261,7 +261,7 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
                         actionSucceeded(parameters);
                     } else
                     if(typeof actionSucceeded === "string") {
-                        session.errors = [actionSucceeded];
+                        session.successes = [actionSucceeded];
                     }
                 }
             }
@@ -270,9 +270,15 @@ request = function(templateName, action, actionFailed, actionSucceeded, id, mask
             redirect(req.url);
         
         } else {
+
             if(session.errors !== undefined && session.errors.length > 0) {
-                list(ul, session.errors, {"class": "successes"});
+                list(ul, session.errors, {"class": "errors"});
                 session.errors = [];
+                update("session", session, undefined, session._id);
+            } else
+            if(session.successes !== undefined && session.successes.length > 0) {
+                list(ul, session.successes, {"class": "successes"});
+                session.successes = [];
                 update("session", session, undefined, session._id);
             }
 

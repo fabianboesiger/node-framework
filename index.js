@@ -13,7 +13,7 @@ module.exports = (directory) => {
     };
 
     // function to import libraries
-    context.library = function(libraryPath) {
+    library = function(libraryPath) {
         libraryPath = __dirname + "/libraries/" + libraryPath;
         if(!fs.existsSync(libraryPath)) {
             throw "library \"" + libraryPath + "\" does not exist";
@@ -23,13 +23,12 @@ module.exports = (directory) => {
         }
     }
 
-    
-    context.library("interval.js");
-    context.library("include.js",);
-    context.library("translate.js");
-    context.library("html.js");
-    context.library("database.js");
-    context.library("session.js");
+    library("interval.js");
+    library("include.js",);
+    library("translate.js");
+    library("html.js");
+    library("database.js");
+    library("session.js");
 
     // read setup file
     if(!fs.existsSync(directory + "/setup.js")) {

@@ -2,23 +2,35 @@ let tags = [
     "a",
     "abbr",
     "address",
-    "area",
+    {
+        "name": "area",
+        "selfClosing": true
+    },
     "article",
     "aside",
     "audio",
     "b",
-    "base",
+    {
+        "name": "base",
+        "selfClosing": true
+    },
     "bdi",
     "bdo",
     "blockquote",
     "body",
-    "br",
+    {
+        "name": "br",
+        "selfClosing": true
+    },
     "button",
     "canvas",
     "caption",
     "cite",
     "code",
-    "col",
+    {
+        "name": "col",
+        "selfClosing": true
+    },
     "colgroup",
     "data",
     "datalist",
@@ -31,7 +43,10 @@ let tags = [
     "dl",
     "dt",
     "em",
-    "embed",
+    {
+        "name": "embed",
+        "selfClosing": true
+    },
     "fieldset",
     "figcaption",
     "figure",
@@ -40,7 +55,10 @@ let tags = [
     "h1", "h2", "h3", "h4", "h5", "h6",
     "head",
     "header",
-    "hr",
+    {
+        "name": "hr",
+        "selfClosing": true
+    },
     {
         "name": "html",
         "pre": () => {
@@ -49,18 +67,30 @@ let tags = [
     },
     "i",
     "iframe",
-    "img",
-    "input",
+    {
+        "name": "img",
+        "selfClosing": true
+    },
+    {
+        "name": "input",
+        "selfClosing": true
+    },
     "ins",
     "kbd",
     "label",
     "legend",
     "li",
-    "link",
+    {
+        "name": "link",
+        "selfClosing": true
+    },
     "main",
     "map",
     "mark",
-    "meta",
+    {
+        "name": "meta",
+        "selfClosing": true
+    },
     "meter",
     "nav",
     "noscript",
@@ -70,7 +100,10 @@ let tags = [
     "option",
     "output",
     "p",
-    "param",
+    {
+        "name": "param",
+        "selfClosing": true
+    },
     "picture",
     "pre",
     "progress",
@@ -84,7 +117,10 @@ let tags = [
     "section",
     "select",
     "small",
-    "source",
+    {
+        "name": "source",
+        "selfClosing": true
+    },
     "span",
     "strong",
     "style",
@@ -103,12 +139,18 @@ let tags = [
     "time",
     "title",
     "tr",
-    "track",
+    {
+        "name": "track",
+        "selfClosing": true
+    },
     "u",
     "ul",
     "var",
     "video",
-    "wbr"
+    {
+        "name": "wbr",
+        "selfClosing": true
+    }
 ];
 tags.forEach(element => {
     let tag = "";
@@ -150,7 +192,11 @@ tags.forEach(element => {
             }
             output += "</" + tag + ">";
         } else {
-            output += "/>";
+            if(element.selfClosing !== undefined && element.selfClosing === true) {
+                output += "/>";
+            } else {
+                output += "></" + tag + ">"; 
+            }
         }
 
         if(element.post !== undefined) {
