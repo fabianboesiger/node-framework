@@ -9,7 +9,7 @@ module.exports = (directory) => {
         "settings": {
             "port": 8000
         },
-        "middleware": []
+        "middleware": [],
     };
 
     // function to import libraries

@@ -1,5 +1,20 @@
 const sessionDuration = 7 * 24 * 60 * 60;
 
+templates.session = {
+    "user": {
+        "type": "string"
+    },
+    "errors": {
+        "type": "array"
+    },
+    "sessions": {
+        "type": "array"
+    },
+    "parameters": {
+        "type": "object"
+    }
+};
+
 function parseCookies(request) {
     let list = {};
     let rc = request.headers.cookie;

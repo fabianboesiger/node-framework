@@ -1,5 +1,18 @@
 const lock = new (require("rwlock"))();
 
+let templates = {};
+
+(() => {
+    let file = "./templates";
+    if(!fs.existsSync(file)) {
+        return;
+    }
+    fs.readdirSync(file).forEach(file => {
+        let template = eval(fs.readFileSync("./templates" + file).toString());
+        templates.push(template);
+    });
+})();
+
 save = function(arg1, arg2, arg3, arg4) {
 
     let name, data, template, id;
@@ -100,14 +113,29 @@ load = function(name, id) {
     return JSON.parse(data);
 }
 
-loadAll = function(name) {
+loadAll = function(name, content, single) {
     objects = [];
-    let file = "./data/" + name + "s";
+    let file = "./data";
     if(!fs.existsSync(file)) {
         return null;
     }
-    fs.readdirSync(file).forEach(file => {
-        objects.push(load(name, file.substring(0, file.length - 5)));
+    fs.readdirSync(file).some(file => {
+        let object = load(name, file.substring(0, file.length - 5));
+        if(content !== undefined) {
+            let correct = false;
+            for(let key in content) {
+                if(!(key in object) || content[key] !== object[key]) {
+                    correct = false;
+                    break;
+                }
+            }
+            if(correct) {
+                objects.push(object);
+            }
+        } else {
+            objects.push(object);
+        }
+        return single !== undefined && single === true && objects.length > 0;
     });
     return objects;
 }
