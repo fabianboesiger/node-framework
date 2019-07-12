@@ -24,7 +24,7 @@ module.exports = (directory) => {
     }
 
     library("interval.js");
-    library("include.js",);
+    library("include.js");
     library("translate.js");
     library("html.js");
     library("database.js");
