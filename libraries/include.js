@@ -1,3 +1,5 @@
+const fs = require("fs");
+
 // includes other files from modules
 include = function(modulePath) {
     modulePath = "modules/" + modulePath;

@@ -1,15 +1,17 @@
-module.exports = (directory) => {
+module.exports = (settings) => {
     const http = require("http");
     const fs = require("fs");
     const mime = require("mime-types");
     const querystring = require("querystring");
+    const multipart = require("parse-multipart");
+    const Busboy = require("busboy");
+
 
     // setup
     let context = {
-        "settings": {
-            "port": 8000
-        },
+        "settings": settings,
         "middleware": [],
+        "require": require,
     };
 
     // function to import libraries
@@ -18,9 +20,7 @@ module.exports = (directory) => {
         if(!fs.existsSync(libraryPath)) {
             throw "library \"" + libraryPath + "\" does not exist";
         }
-        with(context) {
-            eval(fs.readFileSync(libraryPath).toString());
-        }
+        maskedEval(fs.readFileSync(libraryPath).toString(), context);
     }
 
     library("interval.js");
@@ -30,11 +30,13 @@ module.exports = (directory) => {
     library("database.js");
     library("session.js");
 
-    // read setup file
-    if(!fs.existsSync(directory + "/setup.js")) {
-        throw "\"setup.js\" does not exist";
+    // read setup directors
+    let directory = "./setup";
+    if(fs.existsSync(directory)) {
+        fs.readdirSync(directory).forEach(file => {
+            maskedEval(fs.readFileSync(directory + "/" + file).toString(), context);
+        });
     }
-    maskedEval(fs.readFileSync(directory + "/setup.js").toString(), context);
 
     console.log("starting server on port " + context.settings.port);
 
@@ -47,28 +49,66 @@ module.exports = (directory) => {
         } else {
             path = req.url;
         }
-        let filePath = directory + "/root" + path;
+        let filePath = "./root" + path;
         let dynamicFilePath = filePath.substring(0, filePath.lastIndexOf("/") + 1) + "_" + filePath.substring(filePath.lastIndexOf("/") + 1) + ".js";
 
-        // read data
-        var data = "";
-        req.on("data", function(chunk) {
-            data += chunk;
-        });
+        let start = Date.now();
 
-        req.on("end", function() {
-            let start = Date.now();
-
-            // get POST parameters
+        /*
+        // get POST parameters
+        let contentType = req.headers["content-type"];
+        if(contentType === undefined) {
             req.body = {};
             if(data.length > 0) {
-                decodeURIComponent(data).split("&").forEach(element => {
+                decodeURIComponent(data.replace(/\+/g, " ")).split("&").forEach(element => {
                     let splitted = element.split("=");
                     req.body[splitted[0]] = splitted[1];
                 });
             }
+        } else {
+            let contentTypeSemicolon = contentType.indexOf("=");
+            let boundary = "--" + contentType.substring(contentTypeSemicolon + 1);
+            let next = data;
 
-            // get GET parameters
+            function getData(string) {
+                let output = {};
+                string.split(";").forEach((element) => {
+                    let splitted = element.split("=");
+                    if(splitted.length === 2) {
+                        output[splitted[0].trim()] = splitted[1].substring(splitted[1].indexOf("\"") + 1, splitted[1].lastIndexOf("\""));
+                    }
+                });
+                return output;
+            }
+
+            function removeLine(string) {
+                return string.substring(string.indexOf("\n") + 1);
+            }
+
+            while(next.length >= boundary.length) {
+                let boundaryIndex = next.indexOf(boundary) + boundary.length;
+                next = next.substring(boundaryIndex).trim();
+                if(next.length >= boundary.length) {
+
+
+                    let part = next.substring(0, next.indexOf(boundary)).trim();
+                    let content = getData(part.substring(part.indexOf(":") + 1, part.indexOf("\n")));
+                    part = removeLine(part);
+                    if(content.filename !== undefined) {
+                        content.type = part.substring(part.indexOf(":") + 1, part.indexOf("\n")).trim();
+                        part = removeLine(part);
+                    }
+                    part = removeLine(part);
+                    content.value = part;
+                    console.log(content);
+                }
+                
+            }
+        }
+        */
+
+        function process() {
+            // parse GET parameters
             req.params = {};
             if(urlParamsStart >= 0) {
                 req.params = querystring.parse(req.url.substring(urlParamsStart + 1));
@@ -84,6 +124,7 @@ module.exports = (directory) => {
             context.output = "";
             context.errors = [];
             context.header = {};
+            context.statusCode = undefined;
             context.req = req;
             context.res = res;
             context.redirect = res.redirect;
@@ -96,8 +137,6 @@ module.exports = (directory) => {
                 error(req, res, 404);
             } else {
                 if(fs.existsSync(filePath) && fs.lstatSync(filePath).isDirectory()) {
-                    // parse(req, res, path + "/_index.js");
-                    // redirect to the index file
                     res.redirect(path.substring(1) + "/index");
                 } else {
                     if(path.indexOf(".") === -1) {
@@ -115,7 +154,37 @@ module.exports = (directory) => {
             
             let time = Date.now() - start;
             console.log(res.statusCode + "\t " + time + " ms" + "\t " + req.method + "\t " +  req.url);
-        });
+        }
+
+        req.body = {};
+
+        if(req.method === "POST") {
+            // parse POST parameters
+            var busboy = new Busboy({"headers": req.headers});
+            busboy.on("file", function(fieldname, file, filename, encoding, mimetype) {
+                if(!fs.existsSync("./temporary")) {
+                    fs.mkdirSync("./temporary");
+                }
+                if(filename !== "") {
+                    file.pipe(fs.createWriteStream("./temporary/" + filename));
+                } else {
+                    file.resume();
+                }
+                if(req.body[fieldname] === undefined) {
+                    req.body[fieldname] = [];
+                }
+                req.body[fieldname].push(filename);
+            });
+            busboy.on("field", function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
+                req.body[fieldname] = val;
+            });
+            busboy.on('finish', function() {
+                process();
+            });
+            req.pipe(busboy);
+        } else {
+            process();
+        }
 
     }).listen(context.settings.port);
 

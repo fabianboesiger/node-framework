@@ -179,7 +179,11 @@ tags.forEach(element => {
         output += "<" + tag;
         if(attributes !== undefined) {
             for(key in attributes) {
-                output += " " + key + "=\"" + attributes[key] + "\"";
+                if(attributes[key] !== null) {
+                    output += " " + key + "=\"" + attributes[key] + "\"";
+                } else {
+                    output += " " + key;
+                }
             }
         }
 
@@ -223,5 +227,25 @@ list = function(type, list, attributes, lambda) {
                 }
             });
         })
+    });
+}
+
+// generates a html table from a two dimensional javascript array
+spreadsheet = function(headers, contents, attributes) {
+    div({"class": "table-wrapper"}, () => {
+        table(attributes, () => {
+            tr(() => {
+                headers.forEach((element) => {
+                    th(element);
+                })
+            })
+            contents.forEach((row) => {
+                tr(() => {
+                    row.forEach((element) => {
+                        td(element);
+                    })
+                })
+            });       
+        });
     });
 }
