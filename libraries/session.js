@@ -7,6 +7,9 @@ templates.session = {
     "errors": {
         "type": "array"
     },
+    "successes": {
+        "type": "array"
+    },
     "sessions": {
         "type": "array"
     },

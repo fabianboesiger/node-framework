@@ -3,7 +3,6 @@ module.exports = (settings) => {
     const fs = require("fs");
     const mime = require("mime-types");
     const querystring = require("querystring");
-    const multipart = require("parse-multipart");
     const Busboy = require("busboy");
 
 
@@ -29,6 +28,7 @@ module.exports = (settings) => {
     library("html.js");
     library("database.js");
     library("session.js");
+    library("mail.js");
 
     // read setup directors
     let directory = "./setup";
@@ -162,18 +162,18 @@ module.exports = (settings) => {
             // parse POST parameters
             var busboy = new Busboy({"headers": req.headers});
             busboy.on("file", function(fieldname, file, filename, encoding, mimetype) {
+                if(req.body[fieldname] === undefined) {
+                    req.body[fieldname] = [];
+                }
                 if(!fs.existsSync("./temporary")) {
                     fs.mkdirSync("./temporary");
                 }
                 if(filename !== "") {
                     file.pipe(fs.createWriteStream("./temporary/" + filename));
+                    req.body[fieldname].push(filename);
                 } else {
                     file.resume();
                 }
-                if(req.body[fieldname] === undefined) {
-                    req.body[fieldname] = [];
-                }
-                req.body[fieldname].push(filename);
             });
             busboy.on("field", function(fieldname, val, fieldnameTruncated, valTruncated, encoding, mimetype) {
                 req.body[fieldname] = val;

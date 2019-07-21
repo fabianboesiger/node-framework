@@ -1,5 +1,12 @@
 // translates into client language
 translate = function(text) {
+
+    try {
+        req;
+    } catch(e) {
+        return null;
+    }
+
     let languagesString = req.headers["accept-language"];
     let splittedLanguagesString = languagesString.split(",");
     let languages = [{
@@ -26,6 +33,22 @@ translate = function(text) {
                 "weight": element.weight
             });
         }
+        // special rules
+        if(element.language === "gsw-ch") {
+            appendedLanguages.push({
+                "language": "de",
+                "weight": element.weight
+            });
+        }
     });
-    return text[appendedLanguages[0].language];
+
+    let output = "Error";
+    for(let i = 0; i < appendedLanguages.length; i++) {
+        let key = appendedLanguages[i].language;
+        if(key in text) {
+            output = text[key];
+            break;
+        }
+    }
+    return output;
 }

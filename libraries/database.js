@@ -22,10 +22,12 @@ if(fs.existsSync(directory)) {
     });
 }
 
+
+
 save = function(arg1, arg2, arg3, arg4) {
 
     let name, data, template, id;
-    if(typeof arg1 === "object" && typeof arg2 === "object") {
+    if(typeof arg1 === "object") {
         name = arg1._name;
         data = arg1;
         template = arg2;
@@ -49,46 +51,60 @@ save = function(arg1, arg2, arg3, arg4) {
         template = eval(templates[name]);
     }
 
+
     let overwrite = (id !== undefined);
+
+    let dataToSave = {};
 
     if(template !== undefined) {
 
         for(let key in template) {
             let element = template[key];
 
+
             if(element.save !== undefined && element.save === false && data[key] !== undefined) {
-                delete data[key];
+                // delete dataToSave[key];
             } else {
-                if(element.presave !== undefined) {
-                    data[key] = element.presave(data);
+                let next = data[key];
+                if(data[key] === undefined) {
+                    if(typeof element.default === "function") {
+                        next = element.default();
+                    } else {
+                        next = element.default;
+                    }
+                    /*
+                    if(element.presave !== undefined) {
+                        next = element.presave(next);
+                    }
+                    */
+                } 
+
+                dataToSave[key] = next;
+                /*
+                if(element.onchange !== undefined && next !== data[key]) {
+                    element.onchange(data);
                 }
+                */
+                
                 /*
                 if(data[key] === undefined && element.default !== undefined) {
                     data[key] = element.default;
                 }
                 */
                 if(element.unique !== undefined && element.unique === true) {
-                    id = data[key];
+                    id = dataToSave[key];
                 }
             }
         }
     }
 
 
+
+
+
     if(id === undefined) {
         id = generateId(64);
     }
-
-    // save files
-    if(template !== undefined) {
-        for(let key in template) {
-            let element = template[key];
-            if(element.type === "file") {
-
-            }
-        }
-    }
-
 
     let file = dir + "/" + id + ".json";
 
@@ -109,28 +125,35 @@ save = function(arg1, arg2, arg3, arg4) {
 
     // check timestamp
     let current = load(name, id);
-    if(data._timestamp !== undefined && current._timestamp > data._timestamp) {
+    if(current !== null && data._timestamp !== undefined && current._timestamp > data._timestamp) {
         return null;
     }
 
     // set metadata
-    data._timestamp = Date.now();
-    data._id = id;
-    data._name = name;
+    dataToSave._timestamp = Date.now();
+    dataToSave._id = id;
+    dataToSave._name = name;
+
+    for(let key in template) {
+        let element = template[key];
+        if(element.presave !== undefined) {
+            element.presave(dataToSave);
+        }
+    }
 
     lock.writeLock(file, function(release) {
-        fs.writeFileSync(file, JSON.stringify(data));
+        fs.writeFileSync(file, JSON.stringify(dataToSave));
         release();
         for(let key in template) {
             let element = template[key];
             if(element.postsave !== undefined) {
-                element.postsave(data);
+                element.postsave(dataToSave);
             }
         }
 
     });
 
-    return id;
+    return dataToSave;
 }
 
 load = function(name, id) {
@@ -152,17 +175,40 @@ load = function(name, id) {
     return JSON.parse(data);
 }
 
+unlink = function(arg1, arg2) {
+
+    let name;
+    let id;
+    if(typeof arg1 === "object") {
+        name = arg1._name;
+        id = arg1._id;
+    } else {
+        name = arg1;
+        id = arg2;
+    }
+
+    let file = "./data/" + name + "s/" + id + ".json";
+    fs.unlinkSync(file);
+
+}
+
+unlinkAll = function(name, content, single) {
+    loadAll(name, content, single).forEach((obj) => {
+        unlink(obj);
+    });
+}
+
 loadAll = function(name, content, single) {
     objects = [];
     let directory = "./data/" + name + "s";
     if(!fs.existsSync(directory)) {
-        return null;
+        return objects;
     }
 
     fs.readdirSync(directory).some(file => {
         let object = load(name, file.substring(0, file.length - 5));
         if(content !== undefined) {
-            let correct = false;
+            let correct = true;
             for(let key in content) {
                 if(!(key in object) || content[key] !== object[key]) {
                     correct = false;
@@ -185,9 +231,33 @@ update = function(name, data, template, id) {
     if(object === null) {
         return false;
     }
-    for(let key in data) {
-        object[key] = data[key];
+
+    if(template === undefined) {
+        template = eval(templates[name]);
     }
+
+    let changed = [];
+
+    for(let key in data) {
+        let next = data[key];
+        if(template !== undefined && template[key] !== undefined && template[key].onchange !== undefined && next !== object[key]) {
+            changed.push(key);
+        }
+        if(template !== undefined && template[key] !== undefined && template[key].type === "file" && template[key].multiple === true) {
+            next.forEach(element => {
+                if(!object[key].includes(element)) {
+                    object[key].push(element);
+                }
+            });
+        } else {
+            object[key] = next;
+        }
+    }
+
+    changed.forEach(key => {
+        template[key].onchange(object);
+    });
+
     save(name, object, template, id);
     return true;
 }
@@ -287,10 +357,12 @@ validate = function(template, data, mask) {
                     })) {
                         errors.push({"name": errorKey, "error": element["extension-message"]});
                     }
-                    
                 }
             } else {
                 // element is string
+                if(element.empty !== undefined && element.empty === false && value.trim() === "") {
+                    errors.push({"name": errorKey, "error": element["empty-message"]});
+                }
                 if(element.minlength !== undefined) {
                     if(value.length < element.minlength) {
                         errors.push({"name": errorKey, "error": element["minlength-message"]});
@@ -317,13 +389,7 @@ validate = function(template, data, mask) {
             if(element.type === "boolean") {
                 data[key] = false;
             } else {
-                if(element.default !== undefined) {
-                    if(typeof element.default === "function") {
-                        data[key] = element.default(data);
-                    } else {
-                        data[key] = element.default;
-                    }
-                } else {
+                if(element.default === undefined) {
                     if(element.required !== undefined || element.required === true) {
                         errors.push({"name": errorKey, "error": element["required-message"]});
                     }
@@ -375,14 +441,22 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
                     let response = action(name, parameters, template, id);
                     if(response === null || response === false) {
                         if(typeof actionFailed === "function") {
-                            actionFailed(parameters);
+                            actionFailed(parameters, id, response);
+                            // best method?
+                            session.parameters = null;
+                            session.errors = [];
+                            session.successes = [];
                         } else
                         if(typeof actionFailed === "string") {
                             session.errors = [actionFailed];
                         }
                     } else {
                         if(typeof actionSucceeded === "function") {
-                            actionSucceeded(parameters);
+                            actionSucceeded(parameters, id, response);
+                            // best method?
+                            session.parameters = null;
+                            session.errors = [];
+                            session.successes = [];
                         } else
                         if(typeof actionSucceeded === "string") {
                             session.successes = [actionSucceeded];
@@ -395,9 +469,13 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
             }
         
         } else {
-
+            
             let parameters = session.parameters || {};
-            session.parameters = null;
+
+            // reorder?
+            if(hash == parameters._hash) {
+                session.parameters = null;
+            }
 
             if(id !== undefined) {
                 let loaded = load(name, id);
@@ -427,12 +505,14 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
 
                 // parse errors
                 let errors = [];
-                if(session.errors !== undefined) {
-                    for(let i = 0; i < session.errors.length; i++) {
-                        if(session.errors[i].name === key) {
-                            errors.push(session.errors[i].error);
-                            session.errors.splice(i, 1);
-                            i--;
+                if(hash == parameters._hash) {
+                    if(session.errors !== undefined) {
+                        for(let i = 0; i < session.errors.length; i++) {
+                            if(session.errors[i].name === key) {
+                                errors.push(session.errors[i].error);
+                                session.errors.splice(i, 1);
+                                i--;
+                            }
                         }
                     }
                 }
@@ -503,24 +583,36 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
                     } else
                     if(attributes.type === "select") {
                         select(attributes, () => {
-                            if(attributes.options !== undefined) {
-                                attributes.options.forEach((element) => {
-                                    option({"value": element.value}, element.content);
+                            if(element.options !== undefined) {
+                                let options = element.options;
+                                options.splice(0, 0, {
+                                    "value": "none",
+                                    "content": translate({
+                                        "en": "Nothing Selected",
+                                        "de": "Nichts ausgewählt"
+                                    })
+                                });
+                                options.forEach((e) => {
+                                    let optionAttributes = {"value": e.value};
+                                    if(e.value === parameters[key]) {
+                                        optionAttributes.selected = null;
+                                    }
+                                    option(optionAttributes, e.content);
                                 });
                             }
                         });
                     } else
                     if(attributes.type === "radio") {
-                        attributes.options.forEach((element) => {
+                        attributes.options.forEach((e) => {
                             let innerAttributes = {
                                 "type": "radio", 
                                 "name": key, 
-                                "value": element.value
+                                "value": e.value
                             };
-                            if(element.value === parameters[key]) {
+                            if(e.value === parameters[key]) {
                                 innerAttributes.checked = null;
                             }
-                            input(innerAttributes, element.description);
+                            input(innerAttributes, e.description);
                         });
                     } else
                     if(attributes.type === "boolean") {
@@ -538,6 +630,21 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
                     } else {
                         input(attributes);
                     }
+
+
+                    if(attributes.type === "file") {
+                        if(attributes.value) {
+                            ul({"class": "uploads"}, () => {
+                                attributes.value.forEach(name => {
+                                    li(() => {
+                                        span({"class": "name"}, name);
+                                        img({"src": "/files/" + id + "/" + name});
+                                    });
+                                });
+                            });
+                        }
+                    }
+
                     if(errors.length > 0) {
                         list(ul, errors, {"class": "errors"});
                     }
@@ -548,24 +655,27 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
         
             div({"class": "input-wrapper"}, () => {
                 input({"type": "submit", "value": translate({
-                    "en": "Send",
+                    "en": "Submit",
                     "de": "Senden"
                 })});
     
-                if(session.errors !== undefined && session.errors.length > 0) {
-                    list(ul, session.errors, {"class": "errors"});
-                    session.errors = [];
-                } else
-                if(session.successes !== undefined && session.successes.length > 0) {
-                    list(ul, session.successes, {"class": "successes"});
-                    session.successes = [];
+                if(hash == parameters._hash) {
+                    if(session.errors !== undefined && session.errors.length > 0) {
+                        list(ul, session.errors, {"class": "errors"});
+                        session.errors = [];
+                    } else
+                    if(session.successes !== undefined && session.successes.length > 0) {
+                        list(ul, session.successes, {"class": "successes"});
+                        session.successes = [];
+                    }
                 }
             });
 
             input({"name": "_hash", "value": hash, "style": "display: none;"});
             
-
-            update("session", session, undefined, session._id);
+            if(hash == parameters._hash) {
+                update("session", session, undefined, session._id);
+            }
 
 
         }
@@ -574,3 +684,11 @@ request = function(name, action, actionFailed, actionSucceeded, id, mask, labele
 
     });
 }
+
+interval(() => {
+    loadAll("session").forEach((session) => {
+        if(session._timestamp < Date.now() - (1000 * 60 * 60 * 24 * 7)) {
+            unlink(session);
+        }
+    });
+}, 10000);
